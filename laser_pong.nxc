@@ -1,0 +1,378 @@
+int pic;
+int gol_i = 0;
+int gol_v = 0;
+
+int US[5];
+int motor[5];
+
+float x_ugol = 0.0;
+float y_ugol = 0.0;
+//float b_ugol_start = 0.0;
+//float c_ugol_start = 0.0;
+
+float x = 0.0;
+float y = 0.0;
+float gip = 0.0;
+//float US = 0.0;
+//float x_reg = 210.0;
+//float y_reg = 60.0;
+//float x_reg_start = -210.0;
+//float y_reg_start = -60.0;
+
+float X_Max = 420.0;
+float Y_Max = 297.0;
+float Y_Start = 150.0;
+
+float z = 188.0;
+
+float naprav = 0;
+float speed = 0; //Скорость в миллиметрах в секунду!
+int delay;
+
+float x_start;
+float y_start;
+
+float u_x = 0;
+float E_x = 0;
+float E_old_x = 0;
+float Pk_x = 80.0;
+float Dk_x = 160.0;
+
+
+
+float u_y = 0;
+float E_y = 0;
+float E_old_y = 0;
+float Pk_y = 80.0;
+float Dk_y = 160.0;
+
+
+
+float u_A = 0;
+float E_A = 0;
+float E_old_A = 0;
+float Pk_A = 1.0;
+float Dk_A = 4.0;
+
+float Pk_R = 1.0;
+float Dk_R = 4.0;
+
+
+
+void proverka()
+{
+ for (int i = 0;i < X_Max/2;i++)
+  {
+  x = i;
+  Wait(MS_20);
+  }
+
+  Wait(SEC_5);
+
+  for (int i = 0;i < Y_Max;i++)
+  {
+  y = i;
+  Wait(MS_20);
+  }
+  Wait(SEC_5);
+  for (int i = X_Max/2;i > -1*X_Max/2;i--)
+  {
+  x = i;
+  Wait(MS_20);
+  }
+  Wait(SEC_5);
+  for (int i = Y_Max;i > 0;i--)
+  {
+  y = i;
+  Wait(MS_20);
+  }
+  Wait(SEC_5);
+  for (int i = -1*X_Max/2;i < 0;i++)
+  {
+  x = i;
+  Wait(MS_20);
+  }
+  Wait(SEC_8);
+}
+
+void Motor(int speed_B,int speed_C)
+{
+
+
+  if(speed_B > 100) speed_B = 100;
+  if(speed_B < -100) speed_B = -100;
+
+  OnFwd(OUT_B, speed_B);
+
+  if(speed_C > 100) speed_C = 100;
+  if(speed_C < -100) speed_C = -100;
+
+  OnFwd(OUT_C, speed_C);
+
+}
+
+task Play()
+{
+  while(true)
+  {
+    if(pic == 1)
+    {
+      PlayTone(TONE_A4,MS_500);
+      pic = 0;
+    }
+
+    if(pic == 2)
+    {
+      PlayTone(TONE_B4,MS_500);
+      pic = 0;
+    }
+
+    if(pic == 3)
+    {
+      PlayTone(TONE_A3,SEC_1);
+      pic = 0;
+    }
+  }
+}
+
+task Protivnik()
+{
+  long Time_p = CurrentTick();
+  int granica = Random(200)-200;
+  while(true)
+  {
+    E_A =y*2.3 - (-1*MotorRotationCount(OUT_A));
+    u_A = Pk_R*E_A + Dk_R*(E_A - E_old_A);
+    E_old_A = E_A;
+
+    if(u_A > 100) u_A = 100;
+    if(u_A < -100) u_A = -100;
+
+    if (Time_p - CurrentTick() > 2000)
+    {
+       granica = Random(200)-200;
+       
+       float tmp = Random(50)/100+0.5;
+       
+       Pk_R = Pk_A*tmp;
+       Dk_R = Dk_A*tmp;
+
+       Time_p = CurrentTick();
+    }
+
+    if(x<=granica)
+    {
+    OnRev(OUT_A, u_A);
+    }
+    else
+    {
+    Off(OUT_A);
+    }
+    
+    Wait(10);
+  }
+}
+
+task MotorsControl()
+{
+  while(true)
+  {
+    x_ugol = atan(x/z)*180.0/PI;
+
+    gip = sqrt(x*x+z*z);
+    y_ugol = atan(y/gip)*180.0/PI;
+
+    E_x = x_ugol - MotorRotationCount(OUT_B)/57.5;
+    u_x = Pk_x*E_x + Dk_x*(E_x - E_old_x);
+    E_old_x = E_x;
+
+    E_y = y_ugol - (-1*MotorRotationCount(OUT_C))/52.0;
+    u_y = Pk_y*E_y + Dk_y*(E_y - E_old_y);
+    E_old_y = E_y;
+
+    Motor(u_x,-1*u_y);
+
+    Wait(5);
+
+  }
+}
+
+
+
+task main()
+{
+  SetSensorLowspeed(IN_4);
+
+  TextOut(0,LCD_LINE1,"PLAYER1 = ");
+  TextOut(0,LCD_LINE3,"PLAYER2 = ");
+
+  NumOut(80,LCD_LINE1,gol_i);
+  NumOut(80,LCD_LINE3,gol_v);
+
+  ResetRotationCount(OUT_BC);
+  start MotorsControl;
+  start Protivnik;
+  start Play;
+
+  for(int i=0;i<4;i++)
+    {
+      US[i] = SensorUS(S4)*10-50;
+      motor[i] = MotorRotationCount(OUT_A);
+    }
+
+  //proverka();
+
+  x = 0;
+  y = Y_Start;
+
+  Wait(5000);
+
+
+  if(Random(100)>50)
+  {
+  naprav = Random(120)-60;
+  }
+  else
+  {
+  naprav = Random(120)+120;
+  }
+  naprav = (naprav + 3600)%360;
+  speed = 100;
+  delay = 20;
+
+  long Time = CurrentTick();
+
+  while(true)
+  {
+
+  if((CurrentTick()-Time) > 100)
+  {
+    for(int i=0;i<4;i++)
+    {
+      US[i+1] = US[i];
+      motor[i+1] = motor[i];
+    }
+    Time = CurrentTick();
+    
+    US[0] = SensorUS(S4)*10-70;
+    motor[0] = abs(MotorRotationCount(OUT_A))/2.44;
+  }
+
+
+    y = y + speed/(1000/delay) * sin(naprav*PI/180);
+    x = x + speed/(1000/delay) * cos(naprav*PI/180);
+
+    if (y<=0 || y>=Y_Max)
+    {
+       pic = 1;
+
+       naprav = -1*naprav;
+       naprav = (naprav + 3600)%360;
+    }
+
+    if (x<=-X_Max/2)
+    {
+      motor[0] = abs(MotorRotationCount(OUT_A)/2.44);
+      
+      if(y>motor[0]-10 && y<motor[0]+80)
+      {
+      pic = 2;
+
+      if (abs(((motor[4] - motor[0]) / 4 * 10 + speed * sin(naprav*PI/180)) / speed) < 1) {
+         naprav = (asin (((motor[4] - motor[0]) / 4 * 10 + speed * sin(naprav*PI/180)) / speed)) *180 / PI;
+         naprav = (naprav + 3600)%360;
+      }
+      else
+      {
+         naprav = -1*naprav+180;
+         naprav = (naprav + 3600)%360;
+      }
+
+
+
+      }
+      else
+      {
+      pic = 3;
+      gol_i++;
+
+      TextOut(0,LCD_LINE1,"PLAYER1 = ");
+      TextOut(0,LCD_LINE3,"PLAYER2 = ");
+
+      NumOut(80,LCD_LINE1,gol_i);
+      NumOut(80,LCD_LINE3,gol_v);
+      Wait(SEC_3);
+
+      for (int i = -1*X_Max/2;i < 0;i++)
+        {
+         x = i;
+         Wait(MS_10);
+        }
+
+        y = Y_Start;
+        Wait(SEC_2);
+
+        naprav = Random(120)-60;
+        naprav = (naprav + 3600)%360;
+       }
+    }
+
+    if (x>=X_Max/2)
+    {
+      US[0] = SensorUS(S4)*10-70;
+      
+      if(y>US[0]-50 && y<US[0]+70)
+      {
+      pic = 2;
+
+      
+      if (abs(((US[0] - US[4]) / 4 * 10 + speed * sin(naprav*PI/180)) / speed) < 1) {
+         naprav = (asin (((US[0] - US[4]) / 4 * 10 + speed * sin(naprav*PI/180)) / speed)) *180 / PI;
+      }
+      naprav = (naprav + 3600)%360;
+
+      naprav = -1*naprav+180;
+      naprav = (naprav + 3600)%360;
+      }
+      else
+      {
+      pic = 3;
+      gol_v++;
+      
+      TextOut(0,LCD_LINE1,"PLAYER1 = ");
+      TextOut(0,LCD_LINE3,"PLAYER2 = ");
+
+      NumOut(80,LCD_LINE1,gol_i);
+      NumOut(80,LCD_LINE3,gol_v);
+      
+      Wait(SEC_3);
+
+      for (int i = abs(X_Max/2);i > 0;i--)
+        {
+         x = i;
+         Wait(MS_10);
+        }
+
+      y = Y_Start;
+      Wait(SEC_2);
+
+      naprav = Random(120)+120;
+      naprav = (naprav + 3600)%360;
+      }
+
+    }
+
+    Wait(delay);
+  }
+
+}
+
+
+
+
+
+
+
+
+
+
